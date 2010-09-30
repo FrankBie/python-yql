@@ -9,6 +9,7 @@ import readline, os, sys
 
 from urllib.request import urlopen
 from urllib.parse import quote
+from urllib.error import URLError
 from pprint import pprint
 
 class Pager(object):
@@ -30,7 +31,11 @@ class YQL(object):
         _.url = _.PublicURL
 
     def __call__(_, query):
-        r = urlopen(_.url + quote(query), None, _.Timeout)
+        try:
+            r = urlopen(_.url + quote(query), None, _.Timeout)
+        except URLError as e:
+            print("Error:", e)
+            r = None
         if r is None:
             return None
         return json.loads(str(r.read(), 'utf-8'))
@@ -59,7 +64,7 @@ def main():
 
 def makequery(yql, query):
     data = yql(query)
-    if data:
+    if data and data['query'] and data['query']['results']:
         if os.isatty(sys.stdout.fileno()):
             more = Pager()
         else:
@@ -70,6 +75,10 @@ def makequery(yql, query):
         print("{} results returned".format(data['query']['count']), file=more)
         diagnostics(data['query'].get('diagnostics', {}), file=more)
         more.close()
+    else:
+        if data and data['query'] and 'diagnostics' in data['query']:
+            diagnostics(data['query'].get('diagnostics', {}))
+        print("No data")
 
 def diagnostics(diag, file=None):
     if diag:
