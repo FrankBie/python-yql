@@ -5,11 +5,21 @@ try:
 except ImportError:
     import simplejson as json
 
-import readline
+import readline, os, sys
 
 from urllib.request import urlopen
 from urllib.parse import quote
 from pprint import pprint
+
+class Pager(object):
+    def __init__(_):
+        _.p = os.popen('more', 'w')
+
+    def write(_, data):
+        return _.p.write(data)
+
+    def close(_):
+        _.p.close()
 
 class YQL(object):
     PublicURL = 'http://query.yahooapis.com/v1/public/yql?format=json&callback=&diagnostics=true&q='
@@ -28,6 +38,9 @@ class YQL(object):
 def main():
     try:
         yql = YQL()
+        if not os.isatty(sys.stdin.fileno()):
+            makequery(yql, sys.stdin.read())
+            return
         query = ''
         while True:
             if query:
@@ -39,21 +52,40 @@ def main():
                     break
                 query = line.strip()
             if query.endswith(';'):
-                data = yql(query)
-                if data:
-                    print("{} results returned".format(data['query']['count']))
-                    diagnostics(data['query'].get('diagnostics', {}))
-                    pprint(data['query']['results'])
+                makequery(yql, query)
                 query = ''
     except EOFError:
         print()
 
-def diagnostics(diag):
+def makequery(yql, query):
+    data = yql(query)
+    if data:
+        if os.isatty(sys.stdout.fileno()):
+            more = Pager()
+        else:
+            more = sys.stdout
+        for key in data['query']['results']:
+            print(key + ':', file=more)
+            pprint(data['query']['results'][key], stream=more)
+        print("{} results returned".format(data['query']['count']), file=more)
+        diagnostics(data['query'].get('diagnostics', {}), file=more)
+        more.close()
+
+def diagnostics(diag, file=None):
     if diag:
+        if 'url' in diag:
+            # Used external tables.
+            if type(diag['url']) == list:
+                # Multiple external tables.
+                exectimes = ', '.join([ u['execution-time'] for u in diag['url'] ])
+            else:
+                exectimes = diag['url']['execution-time']
+        else:
+            exectimes = 'n/a'
         print('Time: Service: {}; User: {}; Exec: {}'.format(
             diag['service-time'],
             diag['user-time'],
-            diag.get('url', {}).get('execution-time', 'n/a')))
+            exectimes))
 
 if __name__ == '__main__':
     main()
