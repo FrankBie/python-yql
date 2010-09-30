@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+
+try:
+    import json
+except ImportError:
+    import simplejson as json
+
+import readline
+
+from urllib.request import urlopen
+from urllib.parse import quote
+from pprint import pprint
+
+class YQL(object):
+    PublicURL = 'http://query.yahooapis.com/v1/public/yql?format=json&callback=&diagnostics=true&q='
+    Timeout = 5
+
+    def __init__(_, public=True):
+        assert(public == True) # Private authentication not yet supported.
+        _.url = _.PublicURL
+
+    def __call__(_, query):
+        r = urlopen(_.url + quote(query), None, _.Timeout)
+        if r is None:
+            return None
+        return json.loads(str(r.read(), 'utf-8'))
+
+def main():
+    try:
+        yql = YQL()
+        query = ''
+        while True:
+            if query:
+                line = input('>>> ')
+                query += ' ' + line.strip()
+            else:
+                line = input('> ')
+                if not line:
+                    break
+                query = line.strip()
+            if query.endswith(';'):
+                data = yql(query)
+                if data:
+                    print("{} results returned".format(data['query']['count']))
+                    diagnostics(data['query'].get('diagnostics', {}))
+                    pprint(data['query']['results'])
+                query = ''
+    except EOFError:
+        print()
+
+def diagnostics(diag):
+    if diag:
+        print('Time: Service: {}; User: {}; Exec: {}'.format(
+            diag['service-time'],
+            diag['user-time'],
+            diag.get('url', {}).get('execution-time', 'n/a')))
+
+if __name__ == '__main__':
+    main()
