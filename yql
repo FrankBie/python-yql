@@ -96,10 +96,13 @@ def makequery(yql, query):
             more = Pager()
         else:
             more = sys.stdout
-        for key in data['query']['results']:
-            print(key + ':', file=more)
-            pprint(data['query']['results'][key], stream=more)
-        print("{} results returned".format(data['query']['count']), file=more)
+        if query.lower().startswith('desc '):
+            desc(data['query']['results']['table'])
+        else:
+            for key in data['query']['results']:
+                print(key + ':', file=more)
+                pprint(data['query']['results'][key], stream=more)
+            print("{} results returned".format(data['query']['count']), file=more)
         diagnostics(data['query'].get('diagnostics', {}), file=more)
         more.close()
     else:
@@ -122,6 +125,23 @@ def diagnostics(diag, file=None):
             diag['service-time'],
             diag['user-time'],
             exectimes))
+
+def desc(data, file=None):
+    print("Table: {}".format(data['name']))
+    print("Author: {}".format(data['meta']['author']))
+    print("Security: {}".format(data['security']))
+    if 'select' in data['request']:
+        print("Selects:")
+        for n, sel in enumerate(data['request']['select']):
+            lead = '{:2}. '.format(n + 1)
+            for key in sel['key']:
+                print("{}{} {} {}".format(
+                    lead,
+                    key['type'],
+                    key['name'],
+                    '(required)' if key.get('required', 'false') == 'true' else ''))
+                lead = '    '
+        
 
 if __name__ == '__main__':
     main()
