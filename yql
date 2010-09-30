@@ -5,10 +5,10 @@ try:
 except ImportError:
     import simplejson as json
 
-import readline, os, sys
+import readline, os, sys, getopt
 
 from urllib.request import urlopen
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from urllib.error import URLError
 from pprint import pprint
 
@@ -23,16 +23,26 @@ class Pager(object):
         _.p.close()
 
 class YQL(object):
-    PublicURL = 'http://query.yahooapis.com/v1/public/yql?format=json&callback=&diagnostics=true&q='
+    PublicURL = 'http://query.yahooapis.com/v1/public/yql?'
     Timeout = 5
 
-    def __init__(_, public=True):
+    def __init__(_, public=True, diagnostics=True, env=[]):
         assert(public == True) # Private authentication not yet supported.
+        _.qs = {
+            'format': 'json',
+            'callback': '',
+            'diagnostics': {True: 'true', False:'False'}[diagnostics],
+        }
+        _.env = env
         _.url = _.PublicURL
 
     def __call__(_, query):
         try:
-            r = urlopen(_.url + quote(query), None, _.Timeout)
+            _.qs['q'] = query
+            q = urlencode(_.qs)
+            for e in _.env:
+                q += '&env=' + quote(e)
+            r = urlopen(_.url + q, None, _.Timeout)
         except URLError as e:
             print("Error:", e)
             r = None
@@ -42,10 +52,22 @@ class YQL(object):
 
 def main():
     try:
-        yql = YQL()
+        opts, args = getopt.getopt(sys.argv[1:], 'e:', ['env='])
+    except getopt.error as e:
+        print("Error:", e, file=sys.stderr)
+        sys.exit(1)
+
+    env = []
+    for o, a in opts:
+        if o in ('-e', '--env'):
+            env.append(a)
+    
+    try:
+        yql = YQL(env=env)
         if not os.isatty(sys.stdin.fileno()):
             makequery(yql, sys.stdin.read())
             return
+        uses = []
         query = ''
         while True:
             if query:
@@ -57,7 +79,12 @@ def main():
                     break
                 query = line.strip()
             if query.endswith(';'):
-                makequery(yql, query)
+                if query.lower().startswith('use '):
+                    uses.append(query)
+                    print("Using {} additional tables".format(len(uses)))
+                else:
+                    makequery(yql, ' '.join(uses) + query)
+                    uses = []
                 query = ''
     except EOFError:
         print()
