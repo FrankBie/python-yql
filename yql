@@ -128,12 +128,22 @@ def diagnostics(diag, file=None):
 
 def desc(data, file=None):
     print("Table: {}".format(data['name']))
-    print("Author: {}".format(data['meta']['author']))
+    if 'meta' in data:
+        if 'description' in data['meta']:
+            print("Description: {}".format(data['meta']['description']))
+        if 'author' in data['meta']:
+            print("Author: {}".format(data['meta']['author']))
+        if 'sampleQuery' in data['meta']:
+            print("Sample query: {}".format(data['meta']['sampleQuery']))
     print("Security: {}".format(data['security']))
     if 'select' in data['request']:
         print("Selects:")
+        if not type(data['request']['select']) == list:
+            data['request']['select'] = [ data['request']['select'] ]
         for n, sel in enumerate(data['request']['select']):
             lead = '{:2}. '.format(n + 1)
+            if not type(sel['key']) == list:
+                sel['key'] = [ sel['key'] ]
             for key in sel['key']:
                 print("{}{} {} {}".format(
                     lead,
