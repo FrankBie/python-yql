@@ -11,6 +11,26 @@ from urllib.request import urlopen
 from urllib.parse import quote, urlencode
 from urllib.error import URLError
 from pprint import pprint
+from io import StringIO
+import traceback
+
+class Issue(object):
+    IssuesUrl = 'http://github.com/dryfish/python-yql/issues'
+
+    def __init__(_):
+        _.tb = traceback.format_exc().replace('\n', '\n  ').strip()
+
+    def __str__(_):
+        return """\
+An unexpected exception has been caught:
+
+  {}
+
+Please log this exception and details about the YQL you are executing at:
+
+  {}
+""".format(_.tb, _.IssuesUrl)
+
 
 class Pager(object):
     def __init__(_):
@@ -88,27 +108,36 @@ def main():
                 query = ''
     except EOFError:
         print()
+    except:
+        print(Issue())
 
 def makequery(yql, query):
-    data = yql(query)
-    if data and data['query'] and data['query']['results']:
-        if os.isatty(sys.stdout.fileno()):
-            more = Pager()
+    more = None
+    try:
+        data = yql(query)
+        if data and data['query'] and data['query']['results']:
+            if os.isatty(sys.stdout.fileno()):
+                more = StringIO()
+            else:
+                more = sys.stdout
+            if query.lower().startswith('desc '):
+                desc(data['query']['results']['table'], more)
+            else:
+                for key in data['query']['results']:
+                    print(key + ':', file=more)
+                    pprint(data['query']['results'][key], stream=more)
+                print("{} results returned".format(data['query']['count']), file=more)
+            diagnostics(data['query'].get('diagnostics', {}), file=more)
+            if os.isatty(sys.stdout.fileno()):
+                pager = Pager()
+                pager.write(more.getvalue())
+                pager.close()
         else:
-            more = sys.stdout
-        if query.lower().startswith('desc '):
-            desc(data['query']['results']['table'])
-        else:
-            for key in data['query']['results']:
-                print(key + ':', file=more)
-                pprint(data['query']['results'][key], stream=more)
-            print("{} results returned".format(data['query']['count']), file=more)
-        diagnostics(data['query'].get('diagnostics', {}), file=more)
-        more.close()
-    else:
-        if data and data['query'] and 'diagnostics' in data['query']:
-            diagnostics(data['query'].get('diagnostics', {}))
-        print("No data")
+            if data and data['query'] and 'diagnostics' in data['query']:
+                diagnostics(data['query'].get('diagnostics', {}))
+            print("No data")
+    except:
+        print(Issue())
 
 def diagnostics(diag, file=None):
     if diag:
@@ -127,17 +156,17 @@ def diagnostics(diag, file=None):
             exectimes))
 
 def desc(data, file=None):
-    print("Table: {}".format(data['name']))
+    print("Table: {}".format(data['name']), file=file)
     if 'meta' in data:
         if 'description' in data['meta']:
-            print("Description: {}".format(data['meta']['description']))
+            print("Description: {}".format(data['meta']['description']), file=file)
         if 'author' in data['meta']:
-            print("Author: {}".format(data['meta']['author']))
+            print("Author: {}".format(data['meta']['author']), file=file)
         if 'sampleQuery' in data['meta']:
-            print("Sample query: {}".format(data['meta']['sampleQuery']))
-    print("Security: {}".format(data['security']))
+            print("Sample query: {}".format(data['meta']['sampleQuery']), file=file)
+    print("Security: {}".format(data['security']), file=file)
     if 'select' in data['request']:
-        print("Selects:")
+        print("Selects:", file=file)
         if not type(data['request']['select']) == list:
             data['request']['select'] = [ data['request']['select'] ]
         for n, sel in enumerate(data['request']['select']):
@@ -149,7 +178,8 @@ def desc(data, file=None):
                     lead,
                     key['type'],
                     key['name'],
-                    '(required)' if key.get('required', 'false') == 'true' else ''))
+                    '(required)' if key.get('required', 'false') == 'true' else ''),
+                    file=file)
                 lead = '    '
         
 
