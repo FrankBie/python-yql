@@ -14,6 +14,14 @@ from pprint import pprint
 from io import StringIO
 import traceback
 
+InteractiveGreeting = """\
+YQL endpoint {url}
+
+YQL statements may be on multiple lines.
+End your YQL statements with `;' to have the executed.
+Send EOF (Unix: Control-D DOS: Control-Z) to quit.
+"""
+
 class Issue(object):
     IssuesUrl = 'http://github.com/dryfish/python-yql/issues'
 
@@ -43,7 +51,7 @@ class Pager(object):
         _.p.close()
 
 class YQL(object):
-    PublicURL = 'http://query.yahooapis.com/v1/public/yql?'
+    PublicURL = 'http://query.yahooapis.com/v1/public/yql'
     Timeout = 5
 
     def __init__(_, public=True, diagnostics=True, env=[]):
@@ -62,7 +70,7 @@ class YQL(object):
             q = urlencode(_.qs)
             for e in _.env:
                 q += '&env=' + quote(e)
-            r = urlopen(_.url + q, None, _.Timeout)
+            r = urlopen(_.url + '?' + q, None, _.Timeout)
         except URLError as e:
             print("Error:", e)
             r = None
@@ -87,6 +95,7 @@ def main():
         if not os.isatty(sys.stdin.fileno()):
             makequery(yql, sys.stdin.read())
             return
+        print(InteractiveGreeting.format(url=yql.url))
         uses = []
         query = ''
         while True:
@@ -153,7 +162,7 @@ def diagnostics(diag, file=None):
         print('Time: Service: {}; User: {}; Exec: {}'.format(
             diag['service-time'],
             diag['user-time'],
-            exectimes))
+            exectimes), file=file)
 
 def desc(data, file=None):
     print("Table: {}".format(data['name']), file=file)
