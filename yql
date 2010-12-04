@@ -67,9 +67,9 @@ class YQL(object):
     def __call__(_, query):
         try:
             _.qs['q'] = query
-            q = urlencode(_.qs)
-            for e in _.env:
-                q += '&env=' + quote(e)
+            if _.env:
+                _.qs['env'] = _.env
+            q = urlencode(_.qs, True)
             r = urlopen(_.url + '?' + q, None, _.Timeout)
         except URLError as e:
             print("Error:", e)

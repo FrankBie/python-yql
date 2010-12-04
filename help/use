@@ -1,0 +1,3 @@
+USE '<url>' AS <table>;
+
+Use an external datasource.
