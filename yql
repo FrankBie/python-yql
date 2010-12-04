@@ -14,6 +14,12 @@ from pprint import pprint
 from io import StringIO
 import traceback
 
+from help import *
+from issue import *
+from pager import *
+
+setup_issue('dryfish', 'python-yql')
+
 InteractiveGreeting = """\
 YQL endpoint {url}
 
@@ -22,33 +28,15 @@ End your YQL statements with `;' to have the executed.
 Send EOF (Unix: Control-D DOS: Control-Z) to quit.
 """
 
-class Issue(object):
-    IssuesUrl = 'http://github.com/dryfish/python-yql/issues'
+ClientCommandHelp = """\
+Client commands:
 
-    def __init__(_):
-        _.tb = traceback.format_exc().replace('\n', '\n  ').strip()
+\\use   lists the external tables being used.
+\\env   lists the external environments being used.
+\\help  tries to give usage help for YQL keywords.
+"""
 
-    def __str__(_):
-        return """\
-An unexpected exception has been caught:
-
-  {}
-
-Please log this exception and details about the YQL you are executing at:
-
-  {}
-""".format(_.tb, _.IssuesUrl)
-
-
-class Pager(object):
-    def __init__(_):
-        _.p = os.popen('more', 'w')
-
-    def write(_, data):
-        return _.p.write(data)
-
-    def close(_):
-        _.p.close()
+ResetUses = False
 
 class YQL(object):
     PublicURL = 'http://query.yahooapis.com/v1/public/yql'
@@ -108,17 +96,23 @@ def main():
                     break
                 query = line.strip()
             if query.endswith(';'):
-                if query.lower().startswith('use '):
-                    uses.append(query)
-                    print("Using {} additional tables".format(len(uses)))
+                if query[:1] == '\\':
+                    client_command(yql, uses, query)
                 else:
-                    makequery(yql, ' '.join(uses) + query)
-                    uses = []
+                    if query.lower().startswith('use '):
+                        uses.append(query)
+                        print("Using {} additional tables".format(len(uses)))
+                    else:
+                        makequery(yql, ' '.join(uses) + query)
+                        if ResetUses:
+                            uses = []
                 query = ''
     except EOFError:
         print()
+    except KeyboardInterrupt:
+        print()
     except:
-        print(Issue())
+        print(new_issue())
 
 def makequery(yql, query):
     more = None
@@ -146,7 +140,7 @@ def makequery(yql, query):
                 diagnostics(data['query'].get('diagnostics', {}))
             print("No data")
     except:
-        print(Issue())
+        print(new_issue())
 
 def diagnostics(diag, file=None):
     if diag:
@@ -190,7 +184,22 @@ def desc(data, file=None):
                     '(required)' if key.get('required', 'false') == 'true' else ''),
                     file=file)
                 lead = '    '
-        
+
+def client_command(yql, uses, cmd):
+    assert(cmd[:1] == '\\')
+    parts = cmd[1:].rstrip(';').split()
+    if parts[0] == 'use':
+        print("Using {} additional tables".format(len(uses)))
+        for use in uses:
+            print(use)
+    elif parts[0] == 'env':
+        print("Using {} environments".format(len(yql.env)))
+        for env in yql.env:
+            print(env)
+    elif parts[0] == 'help':
+        yql_help(parts[1])
+    else:
+        print(ClientCommandHelp)
 
 if __name__ == '__main__':
     main()
